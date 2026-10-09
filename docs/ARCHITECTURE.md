@@ -1,204 +1,70 @@
-# Honor Agent 系统架构文档
+> **Note:** the source code lives on the `codex/android-apk-package` branch (the default branch). This `main` branch contains documentation and examples only.
 
-> 本文档详细介绍 Honor Agent 的系统架构、核心模块设计和技术实现细节。
+# Architecture
 
----
+HonorAgent is an **early prototype**: a small FastAPI service (about 850 lines of Python in `src/honor_agent/`) that runs a sequence of rule-based agents over a task and returns a trace plus a rule-based scoring report. It does not call any large language model, and it has no database.
 
-## 📋 目录
-
-- [系统概览](#系统概览)
-- [架构分层](#架构分层)
-- [核心引擎](#核心引擎)
-- [数据流设计](#数据流设计)
-- [自定义 Agent 开发](#自定义-agent-开发)
-
----
-
-## 系统概览
-
-Honor Agent 是一个**多智能体自进化 AI 协作平台**，旨在通过多个专业 AI Agent 的协同工作来完成复杂任务。
-
-### 设计原则
-
-| 原则 | 描述 |
-|------|------|
-| **模块化** | 每个功能独立成模块，便于维护和扩展 |
-| **可插拔** | Agent 和技能系统支持热插拔 |
-| **可观测** | 完整的日志、监控和追踪体系 |
-| **容错性** | 多级重试、降级和熔断机制 |
-| **安全性** | 权限控制、审计日志、数据加密 |
-
----
-
-## 架构分层
-
-### 1. 用户交互层 (UI Layer)
+## Components
 
 ```
-┌─────────────────────────────────────────┐
-│           用户交互层                      │
-├─────────────────────────────────────────┤
-│  Web UI    │  CLI      │  API   │ Mobile│
-└─────────────────────────────────────────┘
+src/honor_agent/
+├── server.py               FastAPI app, REST endpoints, in-memory stores, static UI
+├── models.py               Pydantic models (tasks, results, agent runs, reports)
+├── orchestrator.py         Runs the selected agents one after another
+├── evolution.py            Rule-based scoring report ("evolution report")
+├── github_intelligence.py  GitHub URL parsing, metadata fetch, health score
+├── client.py               Async Python client (httpx) for the API
+└── static/                 index.html, app.js, app.css (browser UI)
+android/                    Native Android (Java) client for the API
 ```
 
-### 2. 业务编排层 (Orchestration Layer)
+### API server (`server.py`)
+- FastAPI app, served by uvicorn on `0.0.0.0:8000` via the `honor-agent` console script.
+- Serves the static web UI at `/` and `/static`.
+- Keeps all state in three Python dictionaries (`TASKS`, `TASK_RESULTS`, `EVOLUTION_REPORTS`). Data is lost when the process restarts.
+- Responses use a common envelope: `{success, data, message, request_id}`.
+- No authentication is enforced. The Python client sends an `Authorization: Bearer` header, but the server does not check it.
+
+### Agents
+Three agents are registered in a fixed list. Each is a plain Python function with deterministic, rule-based output:
+
+| ID | What it does |
+|----|--------------|
+| `data_analyst` | Builds a summary and three findings from `params.data_source`, `params.date_range` and the task priority. |
+| `report_generator` | Turns the previous agent's findings (or the task description) into a short report. |
+| `github_intelligence` | Returns a fixed list of repository-maintenance recommendations and echoes any repo URL given in params. |
+
+An agent ID that is not registered is recorded as `skipped`.
+
+### Orchestrator (`orchestrator.py`)
+- Strategy is always `sequential`. If a task lists no agents, the first registered agent (`data_analyst`) runs.
+- Each agent receives a context containing the task and the previous agent's output; every hand-off is recorded.
+- Produces an `OrchestrationResult` with per-agent runs, a final output (summary, agent sequence, handoffs) and an evolution report.
+
+### Scoring report (`evolution.py`)
+- Each agent run starts at 50 points: +25 if completed, +10 if it has a `summary`, +10 if it has a `handoff`, +5 if it has an input summary, −35 if skipped (clamped to 0–100).
+- The overall score is the average. Readiness is `strong` (≥85), `usable` (≥65) or `needs_attention`.
+- Strengths, risks and next actions are fixed strings chosen by simple rules.
+
+### GitHub analysis (`github_intelligence.py`)
+- Parses `https://github.com/owner/repo` or `git@github.com:owner/repo` URLs.
+- Optionally calls the public GitHub REST API (repo and branches endpoints); uses `GITHUB_TOKEN` if set.
+- Computes a rule-based health score (description, license, stars, forks, topics, open issues, archived) and suggested tasks.
+
+### Clients
+- **Web UI** (`static/`): a single page that calls the API.
+- **Python client** (`client.py`): `HonorAgent(api_key, base_url)` with `tasks`, `agents` and `github` helpers.
+- **Android app** (`android/`): see [ANDROID.md](ANDROID.md). It calls `/health`, `/api/v1/github/analyze` and `/api/v1/tasks`; it does not bundle the server.
+
+## Request flow
 
 ```
-┌─────────────────────────────────────────┐
-│  协作引擎  │ 工作流引擎 │ 知识引擎        │
-└─────────────────────────────────────────┘
+POST /api/v1/tasks          -> Task stored in memory (status "created")
+POST /api/v1/tasks/{id}/run -> orchestrator runs agents sequentially
+                            -> evolution report built
+                            -> result + report stored in memory (status "completed")
+GET  /api/v1/tasks/{id}/result | /evolution
 ```
 
-### 3. Agent 核心层 (Agent Core Layer)
-
-```
-┌─────────────────────────────────────────┐
-│  进化引擎  │ 动作引擎  │ 反思引擎         │
-│  改进引擎  │ 优化引擎  │ 告警引擎         │
-└─────────────────────────────────────────┘
-```
-
-### 4. 企业级基础设施 (Enterprise Layer)
-
-```
-┌─────────────────────────────────────────┐
-│  安全引擎  │ 服务网格  │ A/B 测试        │
-│  用户分析  │ 特性开关  │ 备份恢复        │
-└─────────────────────────────────────────┘
-```
-
----
-
-## 核心引擎
-
-### 🔄 进化引擎 (Evolution Engine)
-
-**位置**: `server/evolution_engine/`
-
-**功能**：
-- Agent 能力自进化
-- 自我修复和调优
-- 学习路径优化
-
-```python
-class EvolutionEngine:
-    """Agent 进化引擎"""
-    
-    def expand_capability(self, agent_id: str, new_skill: str):
-        """扩展 Agent 能力"""
-        pass
-    
-    def self_repair(self, agent_id: str):
-        """自我修复"""
-        pass
-```
-
-### 🤝 协作引擎 (Collaboration Engine)
-
-**位置**: `server/collaboration/`
-
-**功能**：
-- 多 Agent 团队构建
-- 任务智能分解
-- 结果聚合优化
-
-```python
-class CollaborationEngine:
-    """多 Agent 协作引擎"""
-    
-    def build_team(self, task: Task) -> AgentTeam:
-        """构建 Agent 团队"""
-        pass
-    
-    def schedule(self, team: AgentTeam, task: Task):
-        """任务调度"""
-        pass
-```
-
-### ⚡ 动作引擎 (Action Engine)
-
-**位置**: `server/action/`
-
-**功能**：
-- 动作规划和分解
-- 执行和监控
-- 异常处理和重试
-
-### 📚 知识引擎 (Knowledge Engine)
-
-**位置**: `server/knowledge_engine/`
-
-**功能**：
-- RAG 向量检索
-- 知识图谱构建
-- 上下文增强
-
-### 🔒 安全引擎 (Security Engine)
-
-**位置**: `server/security_engine/`
-
-**功能**：
-- 权限管理
-- 异常检测
-- 审计日志
-
----
-
-## 数据流设计
-
-### 任务执行流程
-
-```
-用户请求 → 意图理解 → 任务分解 → Agent 调度
-    ↓
-┌─────────────┐     ┌─────────────┐
-│  Agent A    │ ──▶ │  Agent B    │
-└─────────────┘     └─────────────┘
-    ↓                     ↓
-┌─────────────┐     ┌─────────────┐
-│  执行监控   │ ◀── │  执行监控   │
-└─────────────┘     └─────────────┘
-    └──────────┬──────────┘
-               ↓
-        ┌─────────────┐
-        │  结果聚合   │
-        └─────────────┘
-               ↓
-        ┌─────────────┐
-        │  反思改进   │
-        └─────────────┘
-```
-
----
-
-## 自定义 Agent 开发
-
-### 基础模板
-
-```python
-from honor_agent.agents import BaseAgent, AgentResponse
-
-class MyCustomAgent(BaseAgent):
-    """自定义 Agent 示例"""
-    
-    name = "my_custom_agent"
-    description = "这是一个自定义 Agent"
-    capabilities = ["task_1", "task_2"]
-    
-    async def execute(self, task: Task) -> AgentResponse:
-        """执行任务"""
-        try:
-            result = await self.process(task.params)
-            return AgentResponse(success=True, output=result)
-        except Exception as e:
-            return AgentResponse(success=False, error=str(e))
-```
-
----
-
-## 📚 相关文档
-
-- [API 文档](./API_DOCS.md)
-- [部署指南](./DEPLOYMENT.md)
-- [贡献指南](./CONTRIBUTING.md)
+## Not implemented
+There is no LLM integration, no persistent storage, no authentication, no background job queue and no retrieval/knowledge features. Possible next steps: put a real tool or LLM call behind each agent, persist tasks and reports, and add authentication.

@@ -1,76 +1,23 @@
-# 更新日志
+> **Note:** the source code lives on the `codex/android-apk-package` branch (the default branch). This `main` branch contains documentation and examples only.
 
-> 所有重要的项目变更都将记录在此文件中。遵循 [Keep a Changelog](https://keepachangelog.com/) 规范。
+# Changelog
 
----
+## [Unreleased]
+- Documentation rewritten to describe only what the code currently does.
 
-## [1.0.0] - 2024-04-17
+## [0.1.0] - prototype
+### Added
+- FastAPI server with task CRUD, task run, result and scoring-report endpoints, agent list and GitHub repository analysis.
+- Three rule-based agents: `data_analyst`, `report_generator`, `github_intelligence`.
+- Sequential orchestrator that records each agent hand-off.
+- Rule-based scoring ("evolution") report for each run.
+- In-memory storage for tasks, results and reports.
+- Static web UI, async Python client and native Android client.
+- Dockerfile and API-only docker-compose.
+- GitHub Actions: ruff lint + pytest, and debug APK build.
 
-### 🎉 首发版本
+### Not yet implemented
+- LLM or external tool calls inside agents.
+- Persistent storage and authentication.
 
-这是 Honor Agent 的首个正式版本，包含核心功能和基础模块。
-
-### 新增功能
-
-#### 核心引擎
-
-| 模块 | 描述 |
-|------|------|
-| **进化引擎** (`evolution_engine/`) | Agent 自进化、自修复、自评估 |
-| **协作引擎** (`collaboration/`) | 多 Agent 团队构建、任务调度 |
-| **工作流引擎** (`workflow_engine/`) | 流程编排、并行/串行执行 |
-| **知识引擎** (`knowledge_engine/`) | RAG 向量检索、知识图谱 |
-| **动作引擎** (`action/`) | 动作规划、执行、监控 |
-| **反思引擎** (`reflection/`) | 执行反思、失败分析 |
-| **优化引擎** (`optimization_engine/`) | 参数调优、架构优化 |
-| **改进引擎** (`improvement/`) | 持续改进建议 |
-
-#### 企业级功能
-
-| 功能 | 描述 |
-|------|------|
-| **安全引擎** | 权限管理、异常检测、审计日志 |
-| **告警引擎** | 规则配置、实时告警 |
-| **服务网格** | 流量管理、故障注入 |
-| **A/B 测试** | 实验管理、流量分配 |
-| **用户分析** | 行为追踪、漏斗分析 |
-| **特性开关** | 动态配置、灰度发布 |
-| **备份恢复** | 数据备份、灾难恢复 |
-
-### 技术特性
-
-| 特性 | 数值 |
-|------|------|
-| 核心引擎 | 16 |
-| Python 文件 | 142 |
-| 测试覆盖 | 85%+ |
-
-### 安全修复
-
-- ✅ 移除所有硬编码密钥
-- ✅ 强制环境变量配置
-- ✅ 移除危险的 exec() 调用
-- ✅ 添加 CORS 严格验证
-
----
-
-## [待发布] - 开发中
-
-### 计划功能
-
-- [ ] Python SDK 发布
-- [ ] JavaScript/TypeScript SDK
-- [ ] Web 管理后台
-- [ ] Android 客户端
-- [ ] 可视化工作流编辑器
-- [ ] 多租户支持
-
----
-
-## 版本规范
-
-本项目遵循 [语义化版本](https://semver.org/)：
-
-- **MAJOR** 版本：不兼容的 API 变更
-- **MINOR** 版本：向后兼容的功能新增
-- **PATCH** 版本：向后兼容的问题修复
+Development was assisted by AI tools (Codex, ChatGPT, Grok Bot, DeepSeek and MiniMax).
