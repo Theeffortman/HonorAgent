@@ -1,238 +1,53 @@
-# Honor Agent 部署指南
+# Running and Deployment
 
-> 本文档详细介绍 Honor Agent 的各种部署方式。
+HonorAgent is a prototype intended for local use and demos. It has no database, so all tasks and results are lost when the process stops, and it does not enforce authentication. Do not expose it publicly as-is.
 
----
-
-## 📋 目录
-
-- [环境准备](#环境准备)
-- [Docker 部署](#docker-部署)
-- [本地开发部署](#本地开发部署)
-- [Kubernetes 部署](#kubernetes-部署)
-- [生产环境配置](#生产环境配置)
-
----
-
-## 环境准备
-
-### 系统要求
-
-| 组件 | 最低要求 | 推荐配置 |
-|------|----------|----------|
-| CPU | 2 核 | 4 核+ |
-| 内存 | 4 GB | 8 GB+ |
-| 磁盘 | 20 GB | 50 GB+ |
-| 操作系统 | Ubuntu 20.04+ / CentOS 8+ | Ubuntu 22.04 LTS |
-
-### 必需软件
+## Local (Python 3.10+)
 
 ```bash
-python3 --version  # >= 3.10
-docker --version   # >= 20.10
-docker-compose --version  # >= 2.0
-```
-
----
-
-## Docker 部署
-
-### 快速启动
-
-```bash
-# 1. 克隆项目
-git clone https://github.com/Theeffortman/HonorAgent.git
-cd HonorAgent
-
-# 2. 创建环境配置文件
-cp .env.example .env
-# 编辑 .env 填入必要配置
-
-# 3. 启动服务
-docker-compose up -d
-
-# 4. 查看服务状态
-docker-compose ps
-
-# 5. 查看日志
-docker-compose logs -f
-```
-
-### Docker Compose 配置
-
-```yaml
-services:
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-    depends_on:
-      - postgres
-      - redis
-
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: honor_agent
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-
-volumes:
-  postgres_data:
-  redis_data:
-```
-
-### 启动完整版（含监控）
-
-```bash
-docker-compose --profile monitoring up -d
-
-# 访问
-# - API: http://localhost:8000
-# - Prometheus: http://localhost:9090
-# - Grafana: http://localhost:3000
-```
-
----
-
-## 本地开发部署
-
-### 1. 克隆代码
-
-```bash
-git clone https://github.com/Theeffortman/HonorAgent.git
-cd HonorAgent
-```
-
-### 2. 创建虚拟环境
-
-```bash
-python3 -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
-```
-
-### 3. 安装依赖
-
-```bash
-cd server
-pip install -r requirements.txt
-```
-
-### 4. 配置环境变量
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-### 5. 运行服务
-
-```bash
-# 开发模式
-python start.py --dev
-
-# 生产模式
-python start.py
-```
-
-### 6. 验证安装
-
-```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+honor-agent            # serves on http://0.0.0.0:8000
 curl http://localhost:8000/health
 ```
 
----
+Open `http://localhost:8000/` for the web UI and `/docs` for the API docs.
 
-## Kubernetes 部署
+## Docker
 
-### Helm 安装
-
-```bash
-# 添加 Helm 仓库
-helm repo add honor-agent https://charts.honoragent.com
-helm repo update
-
-# 安装
-helm install honor-agent honor-agent/honor-agent \
-  --namespace honor-agent \
-  --set api.replicas=2
-```
-
-### 生产配置
-
-```yaml
-# values-production.yaml
-api:
-  replicaCount: 3
-  resources:
-    requests:
-      memory: "512Mi"
-      cpu: "500m"
-    limits:
-      memory: "2Gi"
-      cpu: "2000m"
-```
-
----
-
-## 生产环境配置
-
-### 环境变量配置
+The `Dockerfile` uses `python:3.11-slim`, installs the package and runs `honor-agent` on port 8000.
 
 ```bash
-NODE_ENV=production
-DATABASE_URL=postgresql://user:pass@db:5432/honor_agent
-REDIS_URL=redis://redis:6379/0
-SECRET_KEY=<随机生成的32位密钥>
-JWT_SECRET=<随机生成的32位密钥>
-OPENAI_API_KEY=<your-key>
-LOG_LEVEL=info
+docker build -t honor-agent .
+docker run -p 8000:8000 honor-agent
 ```
 
-### 反向代理配置 (Nginx)
+## Docker Compose
 
-```nginx
-upstream honor_api {
-    server 127.0.0.1:8000;
-    keepalive 32;
-}
+`docker-compose.yml` defines a single `api` service (no database or cache services). It reads environment variables from `.env`, so create it first:
 
-server {
-    listen 80;
-    server_name api.honoragent.com;
-    return 301 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name api.honoragent.com;
-
-    ssl_certificate /etc/ssl/certs/honor_agent.crt;
-    ssl_certificate_key /etc/ssl/private/honor_agent.key;
-
-    location / {
-        proxy_pass http://honor_api;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
+```bash
+cp .env.example .env
+docker compose up --build
 ```
 
----
+## Environment variables
 
-## 📚 相关文档
+| Variable | Used by | Purpose |
+|----------|---------|---------|
+| `GITHUB_TOKEN` | server | Optional; sent to the GitHub API by `/api/v1/github/analyze` |
+| `HONOR_API_KEY`, `HONOR_BASE_URL` | examples / client | Values for the Python client examples |
 
-- [架构文档](./ARCHITECTURE.md)
-- [API 文档](./API_DOCS.md)
+`.env.example` also contains `OPENAI_API_KEY`, `SECRET_KEY` and `JWT_SECRET` placeholders; the current code does not read them.
+
+## Continuous integration
+
+`.github/workflows/` contains two GitHub Actions workflows, both triggered on push and pull request:
+
+- **CI** (`ci.yml`): Python 3.11, `pip install -e ".[dev]"`, `ruff check .`, `pytest`.
+- **Android APK** (`android.yml`, also manual dispatch): JDK 17 + Gradle 8.10.2, `gradle :app:assembleDebug`, uploads the `honor-agent-debug-apk` artifact.
+
+## Android
+
+See [ANDROID.md](ANDROID.md). The APK is a client only; run the API separately and point the app at its URL.

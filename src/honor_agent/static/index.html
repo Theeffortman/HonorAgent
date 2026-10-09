@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Honor Agent 控制台</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Honor Agent</p>
+        <h1>可视化控制台</h1>
+      </div>
+      <div class="status-strip">
+        <span id="apiStatus" class="status-dot idle"></span>
+        <span id="apiStatusText">未检测</span>
+        <button id="refreshAll" type="button">刷新</button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
+            <h2>任务编排</h2>
+            <p>创建、查看、运行任务</p>
+          </div>
+          <button id="loadTasks" type="button">加载任务</button>
+        </div>
+
+        <form id="taskForm" class="form-grid">
+          <label>
+            <span>任务名称</span>
+            <input id="taskName" name="name" required value="数据分析任务" />
+          </label>
+          <label>
+            <span>优先级</span>
+            <select id="taskPriority" name="priority">
+              <option value="normal">normal</option>
+              <option value="high">high</option>
+              <option value="critical">critical</option>
+              <option value="low">low</option>
+            </select>
+          </label>
+          <label class="span-2">
+            <span>描述</span>
+            <textarea id="taskDescription" name="description" rows="3">分析销售数据并生成报告</textarea>
+          </label>
+          <label>
+            <span>数据源</span>
+            <input id="taskDataSource" name="dataSource" value="sales_db" />
+          </label>
+          <label>
+            <span>时间范围</span>
+            <input id="taskDateRange" name="dateRange" value="last_week" />
+          </label>
+          <fieldset class="span-2">
+            <legend>Agents</legend>
+            <div id="agentChoices" class="choice-grid"></div>
+          </fieldset>
+          <div class="actions span-2">
+            <button type="submit">创建任务</button>
+          </div>
+        </form>
+
+        <div id="taskList" class="task-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Agent 团队</h2>
+            <p>当前可用能力</p>
+          </div>
+          <button id="loadAgents" type="button">刷新</button>
+        </div>
+        <div id="agentList" class="agent-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>GitHub 分析</h2>
+            <p>仓库健康度与任务建议</p>
+          </div>
+        </div>
+        <form id="githubForm" class="stack">
+          <label>
+            <span>仓库 URL</span>
+            <input id="githubUrl" required value="https://github.com/Theeffortman/HonorAgent" />
+          </label>
+          <label class="inline">
+            <input id="includeRemote" type="checkbox" checked />
+            <span>读取 GitHub 远程元数据</span>
+          </label>
+          <button type="submit">开始分析</button>
+        </form>
+        <div id="githubResult" class="insight"></div>
+      </section>
+
+      <section class="panel panel-wide">
+        <div class="panel-head">
+          <div>
+            <h2>响应日志</h2>
+            <p>最近一次 API 结果</p>
+          </div>
+          <button id="clearLog" type="button">清空</button>
+        </div>
+        <pre id="outputLog">{}</pre>
+      </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "honor-agent"
+version = "0.1.0"
+description = "Minimal runnable core for the Honor Agent multi-agent automation platform."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "HonorAgent contributors" }
+]
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "httpx>=0.27,<1.0",
+  "pydantic>=2.7,<3.0",
+  "uvicorn[standard]>=0.30,<1.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.6"
+]
+
+[project.scripts]
+honor-agent = "honor_agent.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/honor_agent"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

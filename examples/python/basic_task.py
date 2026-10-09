@@ -4,7 +4,7 @@ basic_task.py - 基础任务创建与执行示例
 import asyncio
 import os
 from honor_agent import HonorAgent
-from honor_agent.models import Task, TaskParams
+from honor_agent.models import TaskParams
 
 
 async def main():

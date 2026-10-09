@@ -13,7 +13,7 @@
 ## 安装 SDK
 
 ```bash
-pip install honor-agent
+pip install -e ../..
 ```
 
 ## 配置
@@ -71,5 +71,6 @@ if __name__ == "__main__":
 
 ```bash
 export HONOR_API_KEY="your-api-key"
+export HONOR_BASE_URL="http://localhost:8000"
 python basic_task.py
 ```
